@@ -6,6 +6,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.padding import Padding
 from rich import box
+from rich.markup import escape
 
 from .client import JDClient
 from . import tui, utils, config
@@ -116,7 +117,7 @@ def cmd_status(device, args):
                 size_str = f"{utils.human_size(l.get('bytesLoaded',0))}/{utils.human_size(total)}"
                 
                 table.add_row(
-                    l['name'], 
+                    escape(l['name']), 
                     f"{pct:.1f}%", 
                     size_str, 
                     f"{utils.human_size(l.get('speed',0))}/s", 
@@ -141,10 +142,10 @@ def cmd_list(device, args):
             
             p = Panel(
                 f"[bold]ID:[/bold] {l['uuid']}\n"
-                f"[bold]State:[/bold] {l.get('status')} ({pct:.1f}%)\n"
+                f"[bold]State:[/bold] {escape(str(l.get('status')))} ({pct:.1f}%)\n"
                 f"[bold]Size:[/bold] {utils.human_size(l.get('bytesLoaded', 0))} / {utils.human_size(total)}\n"
-                f"[bold]URL:[/bold] [blue underline]{l.get('url', 'N/A')}[/]",
-                title=l['name'],
+                f"[bold]URL:[/bold] [blue underline]{escape(l.get('url', 'N/A'))}[/]",
+                title=escape(l['name']),
                 border_style="dim white",
                 expand=False
             )
@@ -159,10 +160,10 @@ def cmd_list(device, args):
         for l in links:
             total = l.get('bytesTotal', 1) or 1
             pct = (l.get('bytesLoaded', 0) / total) * 100
-            status = (l.get('status') or "N/A")[:15]
+            status = escape((l.get('status') or "N/A")[:15])
             size_fmt = f"{utils.human_size(l.get('bytesLoaded',0))}/{utils.human_size(total)}"
             
-            table.add_row(f"{l['uuid']}", size_fmt, status, l['name'])
+            table.add_row(f"{l['uuid']}", size_fmt, status, escape(l['name']))
         console.print(table)
 
 def cmd_grabber(device, args):
@@ -176,8 +177,8 @@ def cmd_grabber(device, args):
     if args.detail: table.add_column("URL", style="blue")
 
     for l in links:
-        row = [str(l['uuid']), l['name']]
-        if args.detail: row.append(l.get('url', ''))
+        row = [str(l['uuid']), escape(l['name'])]
+        if args.detail: row.append(escape(l.get('url', '')))
         table.add_row(*row)
     
     console.print(table)

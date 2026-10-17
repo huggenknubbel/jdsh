@@ -20,6 +20,7 @@ from rich.align import Align
 from rich.progress_bar import ProgressBar
 from rich.text import Text
 from rich import box
+from rich.markup import escape
 
 from . import utils, config
 
@@ -110,7 +111,7 @@ def generate_layout(state, active_links, pending_links, override_status=None):
             size_str = f"{utils.human_size(done)}/{utils.human_size(total)}"
             
             t_active.add_row(
-                l['name'], 
+                escape(l['name']), 
                 bar, 
                 f"{pct:.0f}%", 
                 size_str,
@@ -132,8 +133,8 @@ def generate_layout(state, active_links, pending_links, override_status=None):
         limit = 10
         for l in pending_links[:limit]:
             t_pending.add_row(
-                l['name'],
-                l.get('status', 'Pending'),
+                escape(l['name']),
+                escape(l.get('status', 'Pending')),
                 utils.human_size(l.get('bytesTotal', 0))
             )
         if len(pending_links) > limit:
