@@ -17,6 +17,21 @@ def set_speed_limit(device, limit):
     device.config.set(SETTINGS, None, "DownloadSpeedLimit", limit)
     enable_speed_limit(device, True)
 
+def query_extraction(device, links):
+    progress = {}
+    for l in links:
+        p = (l.get('advancedStatus') or {}).get('PluginProgress') or {}
+        if p.get('id') == "EXTRACTION":
+            progress[l['name']] = p
+    archives = []
+    for a in device.action("/extraction/getQueue", []) or []:
+        p = next((progress[f] for f in a.get('states', {}) if f in progress), {})
+        archives.append({
+            "name": a.get('archiveName', ''), "status": a.get('controllerStatus', ''),
+            "current": p.get('current', 0), "total": p.get('total', 0), "eta": p.get('eta', 0) // 1000,
+        })
+    return archives
+
 def query_grabber_packages(device):
     return device.linkgrabber.query_packages([{
         "childCount": True, "bytesTotal": True, "saveTo": True,
@@ -79,7 +94,7 @@ class JDClient:
             links = self.device.downloads.query_links([{
                 "name": True, "bytesLoaded": True, "bytesTotal": True, 
                 "speed": True, "running": True, "eta": True, "status": True,
-                "finished": True, "enabled": True, "uuid": True
+                "finished": True, "enabled": True, "uuid": True, "advancedStatus": True
             }])
             
             active = []
@@ -96,9 +111,9 @@ class JDClient:
                 elif l.get('enabled'):
                     pending.append(l)
                     
-            return state, active, pending, get_speed_limit(self.device)
+            return state, active, pending, get_speed_limit(self.device), query_extraction(self.device, links)
         except Exception:
-            return "ERROR", [], [], None
+            return "ERROR", [], [], None, []
 
     def toggle_state(self, current_state):
         if current_state in ["RUNNING", "DOWNLOADING"]:

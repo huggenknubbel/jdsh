@@ -37,6 +37,7 @@ jd
 
 *   **Tips:** 
     *   Press `s` to Start/Stop downloads. 
+    *   Archives being extracted (or waiting for extraction) show up automatically with their progress, also in `jd status`.
     *   Press `l` to turn the download speed limit on/off, `L` to enter a new limit (e.g. `5M`).
     *   Press `Tab` (or `1`/`2`) to switch between the Downloads and LinkGrabber pages.
     *   Press `q` or `Ctrl+C` to quit.
@@ -54,7 +55,7 @@ jd
 │                                                                                                                                                                      │
 │    Dashboard                                                                                                                                                         │
 │    jd                                                Launch the Interactive TUI                                                                                      │
-│    status                                            Show a static snapshot of the queue                                                                             │
+│    status                                            Show a static snapshot of the queue and extraction                                                              │
 │                                                                                                                                                                      │
 │    Queue Management                                                                                                                                                  │
 │    list (ls)                [-d]                     List active downloads                                                                                           │

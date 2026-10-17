@@ -8,7 +8,7 @@ from rich.padding import Padding
 from rich import box
 from rich.markup import escape
 
-from .client import JDClient, query_grabber_packages, query_grabber_links, query_download_packages, confirm_links, get_speed_limit, set_speed_limit, enable_speed_limit
+from .client import JDClient, query_grabber_packages, query_grabber_links, query_download_packages, confirm_links, get_speed_limit, set_speed_limit, enable_speed_limit, query_extraction
 from . import tui, utils, config
 
 def print_help():
@@ -41,7 +41,7 @@ def print_help():
 
     add_section("Dashboard")
     add_cmd("jd", "", "Launch the Interactive TUI")
-    add_cmd("status", "", "Show a static snapshot of the queue")
+    add_cmd("status", "", "Show a static snapshot of the queue and extraction")
 
     add_section("Queue Management")
     add_cmd("list (ls)", "[-d]", "List active downloads")
@@ -95,7 +95,7 @@ def cmd_status(device, args):
         state = device.downloadcontroller.get_current_state()
         links = device.downloads.query_links([{
             "name": True, "bytesLoaded": True, "bytesTotal": True, 
-            "speed": True, "running": True, "eta": True, "status": True
+            "speed": True, "running": True, "eta": True, "status": True, "advancedStatus": True
         }])
         
         active = [l for l in links if l.get('running')]
@@ -125,6 +125,29 @@ def cmd_status(device, args):
                     size_str, 
                     f"{utils.human_size(l.get('speed',0))}/s", 
                     utils.human_eta(l.get('eta', 0))
+                )
+            console.print(table)
+
+        extracting = query_extraction(device, links)
+        if extracting:
+            running = sum(1 for a in extracting if a['status'] == "RUNNING")
+            console.print(f"[bold]Extracting:[/bold] {running} running, {len(extracting) - running} queued")
+
+            table = Table(box=box.SIMPLE_HEAD, show_edge=False)
+            table.add_column("Archive")
+            table.add_column("%", justify="right")
+            table.add_column("Size", justify="right")
+            table.add_column("Status", justify="right", style="yellow")
+            table.add_column("ETA", justify="right", style="green")
+
+            for a in extracting:
+                pct = (a['current'] / a['total']) * 100 if a['total'] else 0
+                table.add_row(
+                    escape(a['name']),
+                    f"{pct:.1f}%",
+                    f"{utils.human_size(a['current'])}/{utils.human_size(a['total'])}" if a['total'] else "-",
+                    escape(a['status'].lower()),
+                    utils.human_eta(a['eta'])
                 )
             console.print(table)
     except Exception as e:

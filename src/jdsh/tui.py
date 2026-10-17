@@ -78,7 +78,7 @@ class KeyboardInput:
                         self.pending.append(KEYS.get(ch, ch))
         return self.pending.pop(0) if self.pending else None
 
-def generate_layout(state, active_links, pending_links, limit=None, override_status=None):
+def generate_layout(state, active_links, pending_links, limit=None, extracting=(), override_status=None):
     current_speed = sum(l.get('speed', 0) for l in active_links)
     
     total_bytes = sum(l.get('bytesTotal', 0) for l in active_links)
@@ -176,10 +176,38 @@ def generate_layout(state, active_links, pending_links, limit=None, override_sta
 
     panel_pending = Panel(t_pending, title="Pending Queue", border_style="dim white", box=box.ROUNDED)
 
+    # Extraction
+    t_extract = Table(expand=True, box=box.SIMPLE, show_edge=False, pad_edge=False)
+    t_extract.add_column("Archive", ratio=3, no_wrap=True)
+    t_extract.add_column("Progress", ratio=2)
+    t_extract.add_column("%", width=5, justify="right")
+    t_extract.add_column("Size (Done/Total)", width=20, justify="right", style="dim")
+    t_extract.add_column("Status", width=12, justify="right", style="yellow")
+    t_extract.add_column("ETA", width=10, justify="right", style="green")
+
+    for a in extracting:
+        pct = (a['current'] / a['total']) * 100 if a['total'] else 0
+        bar = ProgressBar(
+            total=100, completed=pct, width=None, style="grey23",
+            complete_style="bold bright_magenta", finished_style="bold bright_green"
+        )
+        t_extract.add_row(
+            escape(a['name']),
+            bar if a['total'] else "",
+            f"{pct:.0f}%",
+            f"{utils.human_size(a['current'])}/{utils.human_size(a['total'])}" if a['total'] else "-",
+            escape(a['status'].lower()),
+            utils.human_eta(a['eta'])
+        )
+
+    running = sum(1 for a in extracting if a['status'] == "RUNNING")
+    panel_extract = Panel(t_extract, title=f"Extracting ({running} running, {len(extracting) - running} queued)", border_style="magenta", box=box.ROUNDED)
+
     layout = Layout()
     layout.split(
         Layout(header, size=5),
         Layout(panel_active, ratio=2), # Active takes more space
+        *([Layout(panel_extract, size=min(len(extracting), 6) + 4)] if extracting else []),
         Layout(panel_pending, ratio=1),
     )
     return layout
@@ -412,7 +440,7 @@ def run(client):
     console.clear()
     page = "downloads"
     view = GrabberView()
-    downloads = ("UNKNOWN", [], [], None)
+    downloads = ("UNKNOWN", [], [], None, [])
     override = None
     message, message_until = None, 0
     pending_remove = None
