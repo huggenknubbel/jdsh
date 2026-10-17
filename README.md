@@ -37,6 +37,7 @@ jd
 
 *   **Tips:** 
     *   Press `s` to Start/Stop downloads. 
+    *   Press `l` to turn the download speed limit on/off, `L` to enter a new limit (e.g. `5M`).
     *   Press `Tab` (or `1`/`2`) to switch between the Downloads and LinkGrabber pages.
     *   Press `q` or `Ctrl+C` to quit.
 
@@ -65,6 +66,7 @@ jd
 │    Controls                                                                                                                                                          │
 │    start                    [pkg...]                 Start/Resume downloads, or force-start packages                                                                 │
 │    stop                                              Pause/Stop downloads                                                                                            │
+│    limit                    [rate]                   Show or set download speed limit (5M, 500K, on, off)                                                            │
 │    clear                                             Remove finished items from list                                                                                 │
 │    replace                  <uuid> <url>             Replace a dead link URL                                                                                         │
 │                                                                                                                                                                      │

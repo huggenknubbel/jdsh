@@ -3,6 +3,20 @@ import time
 from myjdapi import Myjdapi
 from . import config
 
+SETTINGS = "org.jdownloader.settings.GeneralSettings"
+
+def get_speed_limit(device):
+    if not device.config.get(SETTINGS, None, "DownloadSpeedLimitEnabled"):
+        return None
+    return device.config.get(SETTINGS, None, "DownloadSpeedLimit")
+
+def enable_speed_limit(device, enabled):
+    device.config.set(SETTINGS, None, "DownloadSpeedLimitEnabled", enabled)
+
+def set_speed_limit(device, limit):
+    device.config.set(SETTINGS, None, "DownloadSpeedLimit", limit)
+    enable_speed_limit(device, True)
+
 def query_grabber_packages(device):
     return device.linkgrabber.query_packages([{
         "childCount": True, "bytesTotal": True, "saveTo": True,
@@ -82,15 +96,21 @@ class JDClient:
                 elif l.get('enabled'):
                     pending.append(l)
                     
-            return state, active, pending
+            return state, active, pending, get_speed_limit(self.device)
         except Exception:
-            return "ERROR", [], []
+            return "ERROR", [], [], None
 
     def toggle_state(self, current_state):
         if current_state in ["RUNNING", "DOWNLOADING"]:
             self.device.downloadcontroller.stop_downloads()
         else:
             self.device.downloadcontroller.start_downloads()
+
+    def toggle_limit(self, current_limit):
+        enable_speed_limit(self.device, current_limit is None)
+
+    def set_limit(self, limit):
+        set_speed_limit(self.device, limit)
 
     def fetch_grabber(self):
         try:

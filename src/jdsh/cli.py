@@ -8,7 +8,7 @@ from rich.padding import Padding
 from rich import box
 from rich.markup import escape
 
-from .client import JDClient, query_grabber_packages, query_grabber_links, query_download_packages, confirm_links
+from .client import JDClient, query_grabber_packages, query_grabber_links, query_download_packages, confirm_links, get_speed_limit, set_speed_limit, enable_speed_limit
 from . import tui, utils, config
 
 def print_help():
@@ -53,6 +53,7 @@ def print_help():
     add_section("Controls")
     add_cmd("start", "[pkg...]", "Start/Resume downloads, or force-start packages")
     add_cmd("stop", "", "Pause/Stop downloads")
+    add_cmd("limit", "[rate]", "Show or set download speed limit (5M, 500K, on, off)")
     add_cmd("clear", "", "Remove finished items from list")
     add_cmd("replace", "<uuid> <url>", "Replace a dead link URL")
 
@@ -263,6 +264,18 @@ def cmd_simple(device, args):
     cmds[args.command]()
     print(f"Command executed: {args.command}")
 
+def cmd_limit(device, args):
+    if args.rate is None:
+        limit = get_speed_limit(device)
+    elif args.rate.lower() in ("on", "off"):
+        enable_speed_limit(device, args.rate.lower() == "on")
+        limit = get_speed_limit(device)
+    else:
+        try: limit = utils.parse_size(args.rate)
+        except ValueError: sys.exit(f"Invalid rate '{args.rate}', use e.g. 5M or 500K.")
+        set_speed_limit(device, limit)
+    print(f"Speed limit: {utils.human_size(limit)}/s" if limit else "Speed limit: off")
+
 def cmd_version(device, args):
     print(f"JDSH v{config.VERSION}")
     try: print(f"JD Core: {device.action('/jd/getCoreRevision', [])}")
@@ -301,6 +314,8 @@ def main():
     p_start.add_argument("packages", nargs="*")
 
     sub.add_parser("stop")
+    p_limit = sub.add_parser("limit")
+    p_limit.add_argument("rate", nargs="?")
     sub.add_parser("clear")
     sub.add_parser("version")
     sub.add_parser("help")
@@ -332,7 +347,7 @@ def main():
         'grabber': cmd_grabber, 'confirm': cmd_confirm,
         'add': cmd_add, 'remove': cmd_remove, 'rm': cmd_remove,
         'replace': cmd_replace, 'start': cmd_start, 
-        'stop': cmd_simple, 'clear': cmd_simple,
+        'stop': cmd_simple, 'clear': cmd_simple, 'limit': cmd_limit,
         'version': cmd_version,
     }
     

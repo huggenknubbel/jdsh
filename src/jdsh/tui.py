@@ -31,6 +31,7 @@ KEYS = {
     "\x1bOA": "up", "\x1bOB": "down", "\x1bOC": "right", "\x1bOD": "left",
     "\x1b[5~": "pgup", "\x1b[6~": "pgdn", "\x1b[3~": "delete",
     "\r": "enter", "\n": "enter", "\t": "tab", " ": "space",
+    "\x7f": "backspace", "\x08": "backspace", "\x1b": "esc",
 }
 ESC_SEQS = sorted((k for k in KEYS if k.startswith("\x1b")), key=len, reverse=True)
 WIN_KEYS = {"H": "up", "P": "down", "K": "left", "M": "right", "I": "pgup", "Q": "pgdn", "S": "delete"}
@@ -77,7 +78,7 @@ class KeyboardInput:
                         self.pending.append(KEYS.get(ch, ch))
         return self.pending.pop(0) if self.pending else None
 
-def generate_layout(state, active_links, pending_links, override_status=None):
+def generate_layout(state, active_links, pending_links, limit=None, override_status=None):
     current_speed = sum(l.get('speed', 0) for l in active_links)
     
     total_bytes = sum(l.get('bytesTotal', 0) for l in active_links)
@@ -111,6 +112,10 @@ def generate_layout(state, active_links, pending_links, override_status=None):
         Text.assemble("Active: ", (str(len(active_links)), "bold white"), "  |  ", "Pending: ", (str(len(pending_links)), "dim white")),
         f"[dim]Done: [/dim] {utils.human_size(loaded_bytes)}",
         f"[dim]Left: [/dim] [yellow]{utils.human_size(remaining_bytes)}[/]"
+    )
+    grid.add_row(
+        Text.assemble("Limit: ", (f"{utils.human_size(limit)}/s", "bold yellow") if limit else ("off", "dim")),
+        "", "",
     )
 
     header = Panel(grid, title="JDownloader Panel", border_style=border_color, box=box.ROUNDED)
@@ -173,7 +178,7 @@ def generate_layout(state, active_links, pending_links, override_status=None):
 
     layout = Layout()
     layout.split(
-        Layout(header, size=4),
+        Layout(header, size=5),
         Layout(panel_active, ratio=2), # Active takes more space
         Layout(panel_pending, ratio=1),
     )
@@ -380,7 +385,7 @@ def generate_grabber_layout(view, height):
 
 PAGES = ["downloads", "grabber"]
 FOOTERS = {
-    "downloads": "Press [bold white]s[/] to Start/Stop  |  [bold white]Tab[/] LinkGrabber  |  [bold white]q[/] / [bold white]Ctrl+C[/] to Quit",
+    "downloads": "Press [bold white]s[/] to Start/Stop  |  [bold white]l[/] Limit on/off  |  [bold white]L[/] Set Limit  |  [bold white]Tab[/] LinkGrabber  |  [bold white]q[/] / [bold white]Ctrl+C[/] to Quit",
     "grabber": "[bold white]↑↓ PgUp PgDn[/] Move  [bold white]→←[/] Open  [bold white]Space[/] Select  [bold white]Shift+↑↓[/] Range  [bold white]a[/] All  "
                "[bold white]c[/] Confirm  [bold white]C[/] +Start  [bold white]x[/] Remove  [bold white]q[/] Quit",
 }
@@ -407,16 +412,19 @@ def run(client):
     console.clear()
     page = "downloads"
     view = GrabberView()
-    downloads = ("UNKNOWN", [], [])
+    downloads = ("UNKNOWN", [], [], None)
     override = None
     message, message_until = None, 0
     pending_remove = None
+    prompt = None
 
     def render():
         if page == "downloads":
             body = generate_layout(*downloads, override_status=override)
         else:
             body = generate_grabber_layout(view, console.size.height)
+        if prompt is not None:
+            return generate_screen(page, body, f"Speed limit (e.g. 5M, 500K): {prompt}_   Enter apply, Esc cancel")
         return generate_screen(page, body, message if time.time() < message_until else None)
 
     try:
@@ -460,7 +468,23 @@ def run(client):
                     live.update(render())
                     continue
 
-                if key == "q":
+                if prompt is not None:
+                    if key == "enter":
+                        try:
+                            limit = utils.parse_size(prompt)
+                            client.set_limit(limit)
+                            message = f"Speed limit set to {utils.human_size(limit)}/s"
+                        except ValueError:
+                            message = f"Invalid rate '{prompt}', use e.g. 5M or 500K"
+                        except Exception as e:
+                            message = f"Setting limit failed: {e}"
+                        message_until = time.time() + 3
+                        prompt = None
+                        next_fetch = 0
+                    elif key == "esc": prompt = None
+                    elif key == "backspace": prompt = prompt[:-1]
+                    elif len(key) == 1: prompt += key
+                elif key == "q":
                     break
                 elif key in ("tab", "1", "2"):
                     page = {"1": "downloads", "2": "grabber"}.get(key) or PAGES[(PAGES.index(page) + 1) % len(PAGES)]
@@ -473,6 +497,12 @@ def run(client):
                     except: pass
                     next_fetch = 0
                     continue
+                elif key == "l":
+                    try: client.toggle_limit(downloads[3])
+                    except: pass
+                    next_fetch = 0
+                elif key == "L":
+                    prompt = ""
                 elif page == "grabber":
                     if key == "up": view.move(-1)
                     elif key == "down": view.move(1)
