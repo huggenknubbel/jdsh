@@ -37,6 +37,7 @@ jd
 
 *   **Tips:** 
     *   Press `s` to Start/Stop downloads. 
+    *   Press `x` to clear the pending queue (after confirmation; files on disk are kept).
     *   Archives being extracted (or waiting for extraction) show up automatically with their progress, also in `jd status`.
     *   Press `l` to turn the download speed limit on/off, `L` to enter a new limit (e.g. `5M`).
     *   Press `Tab` (or `1`/`2`) to switch between the Downloads and LinkGrabber pages.
@@ -68,7 +69,7 @@ jd
 │    start                    [pkg...]                 Start/Resume downloads, or force-start packages                                                                 │
 │    stop                                              Pause/Stop downloads                                                                                            │
 │    limit                    [rate]                   Show or set download speed limit (5M, 500K, on, off)                                                            │
-│    clear                                             Remove finished items from list                                                                                 │
+│    clear                    [-p]                     Remove finished items from list, -p removes pending ones                                                        │
 │    replace                  <uuid> <url>             Replace a dead link URL                                                                                         │
 │                                                                                                                                                                      │
 │    Utils                                                                                                                                                             │

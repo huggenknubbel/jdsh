@@ -54,7 +54,7 @@ def print_help():
     add_cmd("start", "[pkg...]", "Start/Resume downloads, or force-start packages")
     add_cmd("stop", "", "Pause/Stop downloads")
     add_cmd("limit", "[rate]", "Show or set download speed limit (5M, 500K, on, off)")
-    add_cmd("clear", "", "Remove finished items from list")
+    add_cmd("clear", "[-p]", "Remove finished items from list, -p removes pending ones")
     add_cmd("replace", "<uuid> <url>", "Replace a dead link URL")
 
     add_section("Utils")
@@ -287,6 +287,15 @@ def cmd_simple(device, args):
     cmds[args.command]()
     print(f"Command executed: {args.command}")
 
+def cmd_clear(device, args):
+    if not args.pending:
+        return cmd_simple(device, args)
+    links = device.downloads.query_links([{"finished": True, "running": True, "enabled": True, "maxResults": -1, "startAt": 0}])
+    pending = [l['uuid'] for l in links if not l.get('finished') and not l.get('running') and l.get('enabled')]
+    if pending:
+        device.downloads.remove_links(pending, [])
+    print(f"Removed {len(pending)} pending links.")
+
 def cmd_limit(device, args):
     if args.rate is None:
         limit = get_speed_limit(device)
@@ -339,7 +348,8 @@ def main():
     sub.add_parser("stop")
     p_limit = sub.add_parser("limit")
     p_limit.add_argument("rate", nargs="?")
-    sub.add_parser("clear")
+    p_clear = sub.add_parser("clear")
+    p_clear.add_argument("-p", "--pending", action="store_true")
     sub.add_parser("version")
     sub.add_parser("help")
 
@@ -370,7 +380,7 @@ def main():
         'grabber': cmd_grabber, 'confirm': cmd_confirm,
         'add': cmd_add, 'remove': cmd_remove, 'rm': cmd_remove,
         'replace': cmd_replace, 'start': cmd_start, 
-        'stop': cmd_simple, 'clear': cmd_simple, 'limit': cmd_limit,
+        'stop': cmd_simple, 'clear': cmd_clear, 'limit': cmd_limit,
         'version': cmd_version,
     }
     

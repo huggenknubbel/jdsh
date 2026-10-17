@@ -413,7 +413,8 @@ def generate_grabber_layout(view, height):
 
 PAGES = ["downloads", "grabber"]
 FOOTERS = {
-    "downloads": "Press [bold white]s[/] to Start/Stop  |  [bold white]l[/] Limit on/off  |  [bold white]L[/] Set Limit  |  [bold white]Tab[/] LinkGrabber  |  [bold white]q[/] / [bold white]Ctrl+C[/] to Quit",
+    "downloads": "[bold white]s[/] Start/Stop  [bold white]l[/] Limit on/off  [bold white]L[/] Set Limit  [bold white]x[/] Clear Pending  "
+                 "[bold white]Tab[/] LinkGrabber  [bold white]q[/]/[bold white]Ctrl+C[/] Quit",
     "grabber": "[bold white]↑↓ PgUp PgDn[/] Move  [bold white]→←[/] Open  [bold white]Space[/] Select  [bold white]Shift+↑↓[/] Range  [bold white]a[/] All  "
                "[bold white]c[/] Confirm  [bold white]C[/] +Start  [bold white]x[/] Remove  [bold white]q[/] Quit",
 }
@@ -444,6 +445,7 @@ def run(client):
     override = None
     message, message_until = None, 0
     pending_remove = None
+    pending_clear = None
     prompt = None
 
     def render():
@@ -496,6 +498,21 @@ def run(client):
                     live.update(render())
                     continue
 
+                if pending_clear is not None:
+                    if key == "y":
+                        try:
+                            client.clear_pending(pending_clear)
+                            message = f"Removed {len(pending_clear)} pending links"
+                        except Exception as e:
+                            message = f"Clear failed: {e}"
+                        next_fetch = 0
+                    else:
+                        message = "Clear cancelled"
+                    pending_clear = None
+                    message_until = time.time() + 3
+                    live.update(render())
+                    continue
+
                 if prompt is not None:
                     if key == "enter":
                         try:
@@ -531,6 +548,11 @@ def run(client):
                     next_fetch = 0
                 elif key == "L":
                     prompt = ""
+                elif key == "x" and page == "downloads":
+                    if downloads[2]:
+                        pending_clear = [l['uuid'] for l in downloads[2]]
+                        message = f"Remove {len(pending_clear)} pending links from the download list (files stay)? y = yes, any other key = cancel"
+                        message_until = time.time() + 3600
                 elif page == "grabber":
                     if key == "up": view.move(-1)
                     elif key == "down": view.move(1)

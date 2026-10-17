@@ -138,3 +138,6 @@ class JDClient:
 
     def remove_from_grabber(self, link_ids, package_ids):
         self.device.linkgrabber.remove_links(list(link_ids), list(package_ids))
+
+    def clear_pending(self, link_ids):
+        self.device.downloads.remove_links(list(link_ids), [])
