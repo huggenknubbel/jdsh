@@ -37,7 +37,14 @@ jd
 
 *   **Tips:** 
     *   Press `s` to Start/Stop downloads. 
-    *   Press `Ctrl+C` to quit.
+    *   Press `Tab` (or `1`/`2`) to switch between the Downloads and LinkGrabber pages.
+    *   Press `q` or `Ctrl+C` to quit.
+
+*   **LinkGrabber page:**
+    *   `↑`/`↓`/`PgUp`/`PgDn` move, `→`/`←` (or `Enter`) open/close a package to inspect its links.
+    *   `Space` selects a link or a whole package, `Shift+↑`/`Shift+↓` extends the selection row by row, `a` selects all/none.
+    *   `c` confirms the selection (or the item under the cursor), `C` confirms and starts it right away.
+    *   `x`/`Del` removes the selection (or the item under the cursor) from the LinkGrabber after asking for confirmation.
 
 ### Commands Overview
 
@@ -50,13 +57,13 @@ jd
 │                                                                                                                                                                      │
 │    Queue Management                                                                                                                                                  │
 │    list (ls)                [-d]                     List active downloads                                                                                           │
-│    grabber                  [-d]                     List pending links inside LinkGrabber                                                                           │
+│    grabber                  [-d]                     List pending packages inside LinkGrabber                                                                        │
 │    add                      <url>...                 Add links to LinkGrabber                                                                                        │
-│    confirm                                           Move all pending links to Queue                                                                                 │
+│    confirm                  [pkg...] [-s]            Move packages (all or by ID/name) to Queue, -s starts them                                                      │
 │    remove (rm)              <uuid>...                Remove items by ID                                                                                              │
 │                                                                                                                                                                      │
 │    Controls                                                                                                                                                          │
-│    start                                             Start/Resume downloads                                                                                          │
+│    start                    [pkg...]                 Start/Resume downloads, or force-start packages                                                                 │
 │    stop                                              Pause/Stop downloads                                                                                            │
 │    clear                                             Remove finished items from list                                                                                 │
 │    replace                  <uuid> <url>             Replace a dead link URL                                                                                         │
@@ -76,6 +83,9 @@ jd
   jd add "http://site.com/archive1.zip" "http://site.com/archive2.zip"
   jd grabber
   jd confirm
+
+  # Confirm and start a single package by ID or name:
+  jd confirm "carrie" -s
 
   # detailed list view:
   jd ls -d

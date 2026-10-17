@@ -8,7 +8,7 @@ from rich.padding import Padding
 from rich import box
 from rich.markup import escape
 
-from .client import JDClient
+from .client import JDClient, query_grabber_packages, query_grabber_links, query_download_packages, confirm_links
 from . import tui, utils, config
 
 def print_help():
@@ -35,7 +35,7 @@ def print_help():
     table.add_column("Description", style="white")
 
     def add_cmd(name, args, desc):
-        table.add_row(name, args, desc)
+        table.add_row(name, escape(args), desc)
     def add_section(name):
         table.add_row(Text(f"\n{name}", style="bold yellow"))
 
@@ -45,13 +45,13 @@ def print_help():
 
     add_section("Queue Management")
     add_cmd("list (ls)", "[-d]", "List active downloads")
-    add_cmd("grabber", "[-d]", "List pending links inside LinkGrabber")
+    add_cmd("grabber", "[-d]", "List pending packages inside LinkGrabber")
     add_cmd("add", "<url>...", "Add links to LinkGrabber")
-    add_cmd("confirm", "", "Move all pending links to Queue")
+    add_cmd("confirm", "[pkg...] [-s]", "Move packages (all or by ID/name) to Queue, -s starts them")
     add_cmd("remove (rm)", "<uuid>...", "Remove items by ID")
 
     add_section("Controls")
-    add_cmd("start", "", "Start/Resume downloads")
+    add_cmd("start", "[pkg...]", "Start/Resume downloads, or force-start packages")
     add_cmd("stop", "", "Pause/Stop downloads")
     add_cmd("clear", "", "Remove finished items from list")
     add_cmd("replace", "<uuid> <url>", "Replace a dead link URL")
@@ -68,6 +68,8 @@ def print_help():
         "[bold cyan]jd add[/] [green]\"http://site.com/archive1.zip\"[/] [green]\"http://site.com/archive2.zip\"[/]\n"
         "[bold cyan]jd grabber[/]\n"
         "[bold cyan]jd confirm[/]\n\n"
+        "[dim]# Confirm and start a single package by ID or name:[/]\n"
+        "[bold cyan]jd confirm[/] [green]\"carrie\"[/] [bold cyan]-s[/]\n\n"
         "[dim]# detailed list view:[/]\n"
         "[bold cyan]jd ls -d[/]"
     )
@@ -166,23 +168,54 @@ def cmd_list(device, args):
             table.add_row(f"{l['uuid']}", size_fmt, status, escape(l['name']))
         console.print(table)
 
-def cmd_grabber(device, args):
-    links = device.linkgrabber.query_links([{"name": True, "uuid": True, "url": True}])
-    if not links: return print("LinkGrabber is empty.")
-    
-    console = Console()
-    table = Table(title=f"Pending Links ({len(links)})", box=box.SIMPLE)
-    table.add_column("ID", style="dim")
-    table.add_column("Name")
-    if args.detail: table.add_column("URL", style="blue")
+def _select_packages(pkgs, selectors):
+    chosen = {}
+    for sel in selectors:
+        matches = [p for p in pkgs if str(p['uuid']) == sel]
+        if not matches:
+            matches = [p for p in pkgs if sel.lower() in p['name'].lower()]
+        if not matches:
+            sys.exit(f"No package matches '{sel}'.")
+        if len(matches) > 1:
+            names = "\n".join(f"  {p['uuid']}  {p['name']}" for p in matches)
+            sys.exit(f"'{sel}' matches multiple packages, use the ID:\n{names}")
+        chosen[matches[0]['uuid']] = matches[0]
+    return list(chosen.values())
 
-    for l in links:
-        row = [str(l['uuid']), escape(l['name'])]
-        if args.detail: row.append(escape(l.get('url', '')))
+def cmd_grabber(device, args):
+    pkgs = query_grabber_packages(device)
+    if not pkgs: return print("LinkGrabber is empty.")
+
+    links_by_pkg = {}
+    if args.detail:
+        for l in query_grabber_links(device):
+            links_by_pkg.setdefault(l.get('packageUUID'), []).append(l)
+
+    console = Console()
+    table = Table(title=f"Pending Packages ({len(pkgs)})", box=box.SIMPLE)
+    table.add_column("ID", style="dim", no_wrap=True)
+    table.add_column("Name")
+    table.add_column("Links", justify="right")
+    table.add_column("Online", justify="right", style="green")
+    table.add_column("Offline", justify="right", style="red")
+    table.add_column("Size", justify="right")
+    if args.detail: table.add_column("Save To", style="dim")
+
+    for p in pkgs:
+        row = [
+            str(p['uuid']), f"[bold]{escape(p['name'])}[/]", str(p.get('childCount', 0)),
+            str(p.get('availableOnlineCount', 0)), str(p.get('availableOfflineCount', 0)),
+            utils.human_size(p.get('bytesTotal', 0)),
+        ]
+        if args.detail: row.append(escape(p.get('saveTo', '')))
         table.add_row(*row)
-    
+        for l in links_by_pkg.get(p['uuid'], []):
+            row = ["", f"  [dim]└[/] {escape(l['name'])}", "", "", "", ""]
+            if args.detail: row.append(f"[blue]{escape(l.get('url', ''))}[/]")
+            table.add_row(*row)
+
     console.print(table)
-    console.print("\n[green]Run 'jd confirm' to start downloading.[/]")
+    console.print("\n[green]Run 'jd confirm' (all) or 'jd confirm <ID|name> -s' to start downloading.[/]")
 
 def cmd_add(device, args):
     raw = " ".join(args.urls)
@@ -190,11 +223,27 @@ def cmd_add(device, args):
     device.linkgrabber.add_links([{"links": link_str, "autostart": False, "priority": "DEFAULT"}])
     print(f"Added links to Grabber. Run 'jd confirm' to start.")
 
-def cmd_confirm(device, _):
-    pkgs = device.linkgrabber.query_packages([{"uuid": True}])
+def cmd_confirm(device, args):
+    pkgs = query_grabber_packages(device)
     if not pkgs: return print("No pending packages.")
-    device.linkgrabber.move_to_downloadlist([], [p['uuid'] for p in pkgs])
+    if args.packages:
+        pkgs = _select_packages(pkgs, args.packages)
+
+    started = confirm_links(device, [], [p['uuid'] for p in pkgs], [p['name'] for p in pkgs], args.start)
     print(f"Confirmed {len(pkgs)} packages.")
+    if args.start and not started:
+        return print("Could not find the confirmed packages in the download list, run 'jd start' manually.")
+    for name in started:
+        print(f"Started: {name}")
+
+def cmd_start(device, args):
+    if not args.packages:
+        device.downloadcontroller.start_downloads()
+        return print("Command executed: start")
+    pkgs = _select_packages(query_download_packages(device), args.packages)
+    device.downloads.force_download([], [p['uuid'] for p in pkgs])
+    for p in pkgs:
+        print(f"Started: {p['name']}")
 
 def cmd_remove(device, args):
     device.downloads.remove_links(args.uuids, [])
@@ -208,7 +257,6 @@ def cmd_replace(device, args):
 
 def cmd_simple(device, args):
     cmds = {
-        'start': device.downloadcontroller.start_downloads,
         'stop': device.downloadcontroller.stop_downloads,
         'clear': lambda: device.downloads.cleanup("DELETE_FINISHED", "REMOVE_LINKS_ONLY", "ALL", [], [])
     }
@@ -245,8 +293,13 @@ def main():
     p_gr = sub.add_parser("grabber")
     p_gr.add_argument("-d", "--detail", action="store_true")
 
-    sub.add_parser("confirm")
-    sub.add_parser("start")
+    p_conf = sub.add_parser("confirm")
+    p_conf.add_argument("packages", nargs="*")
+    p_conf.add_argument("-s", "--start", action="store_true")
+
+    p_start = sub.add_parser("start")
+    p_start.add_argument("packages", nargs="*")
+
     sub.add_parser("stop")
     sub.add_parser("clear")
     sub.add_parser("version")
@@ -278,7 +331,7 @@ def main():
         'list': cmd_list, 'ls': cmd_list,
         'grabber': cmd_grabber, 'confirm': cmd_confirm,
         'add': cmd_add, 'remove': cmd_remove, 'rm': cmd_remove,
-        'replace': cmd_replace, 'start': cmd_simple, 
+        'replace': cmd_replace, 'start': cmd_start, 
         'stop': cmd_simple, 'clear': cmd_simple,
         'version': cmd_version,
     }
