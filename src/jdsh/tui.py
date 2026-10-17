@@ -534,7 +534,7 @@ def run(client):
                 elif key in ("tab", "1", "2"):
                     page = {"1": "downloads", "2": "grabber"}.get(key) or PAGES[(PAGES.index(page) + 1) % len(PAGES)]
                     next_fetch = 0
-                elif key == "s":
+                elif key == "s" and page == "downloads":
                     is_running = downloads[0] in ["RUNNING", "DOWNLOADING"]
                     override = "STOPPING..." if is_running else "STARTING..."
                     live.update(render())
@@ -542,11 +542,11 @@ def run(client):
                     except: pass
                     next_fetch = 0
                     continue
-                elif key == "l":
+                elif key == "l" and page == "downloads":
                     try: client.toggle_limit(downloads[3])
                     except: pass
                     next_fetch = 0
-                elif key == "L":
+                elif key == "L" and page == "downloads":
                     prompt = ""
                 elif key == "x" and page == "downloads":
                     if downloads[2]:
